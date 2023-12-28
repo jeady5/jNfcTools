@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NFC Tools</string>
+    <string name="mode_read">Read</string>
+    <string name="change_read_method">read exchange</string>
+    <string name="change_finish">success</string>
+    <string name="read_text">Read</string>
+    <string name="more_text">More</string>
+    <string name="developing_text">developing</string>
+</resources>
