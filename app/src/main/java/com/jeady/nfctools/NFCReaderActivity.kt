@@ -3,10 +3,14 @@ package com.jeady.nfctools
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.IntentFilter
+import android.nfc.FormatException
+import android.nfc.NdefMessage
+import android.nfc.NdefRecord
 import android.nfc.NfcAdapter
 import android.nfc.NfcAdapter.FLAG_READER_NFC_A
 import android.nfc.NfcAdapter.ReaderCallback
 import android.nfc.Tag
+import android.nfc.TagLostException
 import android.nfc.tech.IsoDep
 import android.nfc.tech.MifareClassic
 import android.nfc.tech.MifareUltralight
@@ -19,23 +23,22 @@ import android.nfc.tech.NfcF
 import android.nfc.tech.NfcV
 import android.os.Bundle
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.jeady.nfctools.ui.jcomps.ButtonText
@@ -43,6 +46,7 @@ import com.jeady.nfctools.ui.jcomps.TextBlock
 import com.jeady.nfctools.ui.jcomps.TitleBig
 import com.jeady.nfctools.ui.jcomps.TitleSmall
 import com.jeady.nfctools.ui.theme.NFCToolsTheme
+import java.io.IOException
 
 
 class NFCReaderActivity: ComponentActivity(), ReaderCallback {
@@ -98,6 +102,7 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         setContent{
             NFCToolsTheme{
+                val context = LocalContext.current
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     TitleBig(stringResource(R.string.mode_read), Modifier.align(Alignment.TopCenter))
                     ButtonText("${stringResource(R.string.change_read_method)}\n$readTagMode", Modifier.align(Alignment.TopEnd)) {
@@ -110,29 +115,10 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
                             disableForegroundDispatcher()
                             enableForegroundReader()
                         }
-                        makeToast(getString(R.string.change_finish))
+                        makeToast(context, getString(R.string.change_finish))
                     }
                     Surface(shadowElevation = 2.dp) {
-                        Column(
-                            Modifier
-                                .fillMaxWidth(0.9f)
-                                .padding(10.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                            horizontalAlignment = Alignment.Start
-                        ) {
-                            TitleSmall("Action:")
-                            TextBlock(action?:"-")
-
-                            TitleSmall("TagId:")
-                            TextBlock(cardId)
-
-                            TitleSmall("Tech list:")
-                            Column {
-                                techList.forEach {
-                                    TextBlock(it)
-                                }
-                            }
-                        }
+                        ReaderUI()
                     }
                 }
             }
@@ -164,21 +150,6 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
         handleIntent(intent)
     }
 
-    @OptIn(ExperimentalStdlibApi::class)
-    fun handleTag(tag: Tag?){
-        tag?.run {
-            Log.i(TAG, "handleTag: ${tag.id.toHexString()}")
-            cardId = id.toHexString()
-            this@NFCReaderActivity.techList = techList.toList()
-            Log.i(TAG, "handleTag: id $cardId")
-            Log.i(TAG, "handleTag: tech list ${techList.toList()}")
-        }?:{
-            action = "-"
-            cardId = "-"
-            techList = listOf("-")
-        }
-    }
-
     private fun enableForegroundReader(){
         Log.i(TAG, "enableForegroundReader: ")
         nfcAdapter.enableReaderMode(this, this, FLAG_READER_NFC_A,null)
@@ -187,7 +158,7 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
         Log.i(TAG, "disableReader: ")
         nfcAdapter.disableReaderMode(this)
     }
-    override fun onTagDiscovered(tag: Tag?) {
+    override fun onTagDiscovered(tag: Tag) {
         Log.i(TAG, "onTagDiscovered: $tag")
         action = "-"
         handleTag(tag)
@@ -210,10 +181,107 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
         Log.i(TAG, "handleIntent: $intent")
         action = intent.action
         action?.let{
+            if (NfcAdapter.ACTION_NDEF_DISCOVERED == intent.action) {
+                handleNdefMsg(intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, NdefMessage::class.java))
+            }
             handleTag(intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java))
+            val extraId = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_ID)
+            Log.i(TAG, "handleIntent: get extra id $extraId")
         }
     }
-    private fun makeToast(text: String) {
-        Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
+    private fun handleNdefMsg(ndefMessages: Array<NdefMessage>?){
+        ndefMessages?.forEach {
+            Log.i(TAG, "handleNdefMsg: get ndef msg length=${it.byteArrayLength}")
+        }
+    }
+    @OptIn(ExperimentalStdlibApi::class)
+    fun handleTag(tag: Tag?){
+        tag?.let {
+            cardId = tag.id.toHexString()
+            Log.i(TAG, "handleTag: id=$cardId")
+
+            techList = tag.techList.toList()
+            Log.i(TAG, "handleTag: techList=$techList")
+            when{
+                MifareClassic::class.java.name in techList->{
+                    val mifareClassic = MifareClassic.get(tag)
+                    mifareClassic.connect()
+                    Log.i(TAG, "handleTag: ${mifareClassic.readBlock(0).toHexString()}")
+                    mifareClassic.close()
+                }
+                NdefFormatable::class.java.name in techList->{
+                    val ndef = NdefFormatable.get(tag)
+                    Log.i(TAG, "handleTag: ndef=$ndef ${ndef.isConnected}")
+                    val newMsg = NdefMessage(NdefRecord.createUri("hello"))
+                    ndef.connect()
+                    Log.i(TAG, "handleTag: ndef3=$ndef ${ndef.isConnected}")
+                    try {
+                        Log.i(TAG, "handleTag: ndef2=$ndef ${ndef.isConnected}")
+                        ndef.format(newMsg)
+                        Log.i(TAG, "handleTag: ndef msg=$newMsg")
+                    }catch (lostEx: TagLostException){
+                        Log.e(TAG, "handleTag: lost exception", )
+                        makeToast(this, "remove card")
+                    }catch (ioEx: IOException){
+                        Log.e(TAG, "handleTag: io exception", )
+                        makeToast(this, "canceled")
+                    }catch (formatEx: FormatException){
+                        Log.e(TAG, "handleTag: format exception", )
+                        makeToast(this, "format err")
+                    }
+                    ndef.close()
+                    Log.i(TAG, "handleTag: ndef byteArrayLength=${newMsg.byteArrayLength}")
+                    Log.i(TAG, "handleTag: ndef toByteArray=${newMsg.toByteArray()}")
+                    newMsg.records.forEach {record->
+                        Log.w(TAG, "handleTag: record $record")
+                        Log.i(TAG, "handleTag: id ${record.id.toHexString()}")
+                        Log.i(TAG, "handleTag: tnf ${record.tnf}")
+                        Log.i(TAG, "handleTag: payload ${record.payload.toHexString()}")
+                        Log.i(TAG, "handleTag: type ${record.type.toHexString()}")
+                        Log.i(TAG, "handleTag: toUri ${record.toUri()}")
+                        Log.i(TAG, "handleTag: toMimeType ${record.toMimeType()}")
+                    }
+                }
+            }
+//            var ndef = Ndef.get(tag)
+
+//            Log.d("handleTag", "Read NDEF message: ${ndef.ndefMessage}")
+//            Log.d("handleTag", "Read NDEF isWritable: ${ndef.isWritable}")
+
+            techList.forEach { tec ->
+                when (tec) {
+                    NfcF::class.java.name -> {
+                    }
+                    MifareClassic::class.java.name -> {
+                    }
+                    NfcF::class.java.name -> {
+
+                    }
+                }
+            }
+        }
+    }
+    @Composable
+    fun ReaderUI() {
+        Column(
+            Modifier
+                .fillMaxWidth(0.9f)
+                .padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            TitleSmall("Action:")
+            TextBlock(action?:"-")
+
+            TitleSmall("TagId:")
+            TextBlock(cardId)
+
+            TitleSmall("Tech list:")
+            Column {
+                techList.forEach {
+                    TextBlock(it)
+                }
+            }
+        }
     }
 }

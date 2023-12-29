@@ -1,7 +1,10 @@
 package com.jeady.nfctools
 
+import android.content.Context
 import android.content.Intent
+import android.nfc.NfcAdapter
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -25,9 +28,14 @@ import com.jeady.nfctools.ui.jcomps.ButtonBlock
 import com.jeady.nfctools.ui.theme.NFCToolsTheme
 
 class MainActivity : ComponentActivity() {
+    lateinit var nfcAdapter: NfcAdapter
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+        nfcAdapter?:{
+            makeToast(this,"不支持NFC")
+        }
         setContent {
             NFCToolsTheme {
                 Surface(
@@ -66,4 +74,9 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
+
+fun makeToast(context: Context, text: String) {
+    Log.d("[Tool] ", "makeToast() called with: context = $context, text = $text")
+    Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
 }
