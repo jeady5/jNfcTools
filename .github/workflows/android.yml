@@ -3,7 +3,7 @@ name: Android CI
 on:
   push:
     branches: [ "master" ]
-  commit_comment:
+  commit:
     branches: [ "master" ]
 
 jobs:
