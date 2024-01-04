@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,11 +42,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.jeady.nfctools.jnfc.MifareTag
+import com.jeady.nfctools.jnfc.NdefFormatableTag
 import com.jeady.nfctools.ui.jcomps.ButtonText
 import com.jeady.nfctools.ui.jcomps.TextBlock
 import com.jeady.nfctools.ui.jcomps.TitleBig
 import com.jeady.nfctools.ui.jcomps.TitleSmall
 import com.jeady.nfctools.ui.theme.NFCToolsTheme
+import com.jeady.nfctools.jnfc.NdefTag
+import com.jeady.nfctools.jnfc.NfcATag
+import kotlinx.coroutines.runBlocking
 import java.io.IOException
 
 
@@ -77,6 +83,14 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
     private var action: String? by mutableStateOf(null)
     private var cardId by mutableStateOf("-")
     private var techList by mutableStateOf(listOf("-"))
+    private var records by mutableStateOf<List<Bundle>>(listOf())
+
+    private var contentInput by mutableStateOf("")
+
+    enum class ReadWriteMode{
+        Read, Write
+    }
+    private var readWriteMode by mutableStateOf(ReadWriteMode.Read)
 
     // variable global control
     private enum class ReadTagMode{
@@ -104,7 +118,9 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
             NFCToolsTheme{
                 val context = LocalContext.current
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    TitleBig(stringResource(R.string.mode_read), Modifier.align(Alignment.TopCenter))
+//                    TitleBig(stringResource(R.string.mode_read), Modifier.align(Alignment.TopCenter))
+                    TitleBig(if(readWriteMode == ReadWriteMode.Write) "读写模式" else "读模式", Modifier.align(Alignment.TopCenter))
+
                     ButtonText("${stringResource(R.string.change_read_method)}\n$readTagMode", Modifier.align(Alignment.TopEnd)) {
                         if(readTagMode == ReadTagMode.Reader){
                             readTagMode = ReadTagMode.Dispatcher
@@ -159,7 +175,7 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
         nfcAdapter.disableReaderMode(this)
     }
     override fun onTagDiscovered(tag: Tag) {
-        Log.i(TAG, "onTagDiscovered: $tag")
+        Log.i(TAG, "onTagDiscovered: $tag ${tag.id}")
         action = "-"
         handleTag(tag)
     }
@@ -181,73 +197,36 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
         Log.i(TAG, "handleIntent: $intent")
         action = intent.action
         action?.let{
-            if (NfcAdapter.ACTION_NDEF_DISCOVERED == intent.action) {
-                handleNdefMsg(intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, NdefMessage::class.java))
-            }
             handleTag(intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java))
             val extraId = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_ID)
             Log.i(TAG, "handleIntent: get extra id $extraId")
-        }
-    }
-    private fun handleNdefMsg(ndefMessages: Array<NdefMessage>?){
-        ndefMessages?.forEach {
-            Log.i(TAG, "handleNdefMsg: get ndef msg length=${it.byteArrayLength}")
         }
     }
     @OptIn(ExperimentalStdlibApi::class)
     fun handleTag(tag: Tag?){
         tag?.let {
             cardId = tag.id.toHexString()
-            Log.i(TAG, "handleTag: id=$cardId")
-
             techList = tag.techList.toList()
             Log.i(TAG, "handleTag: techList=$techList")
             when{
-                MifareClassic::class.java.name in techList->{
-                    val mifareClassic = MifareClassic.get(tag)
-                    mifareClassic.connect()
-                    Log.i(TAG, "handleTag: ${mifareClassic.readBlock(0).toHexString()}")
-                    mifareClassic.close()
+                Ndef::class.java.name in techList-> NdefTag.read(tag){
+                    Log.d(TAG, "handleTag: Ndef parse $it")
+                    records = it.getParcelableArray("records", Bundle::class.java)?.toList()?: listOf()
+                    if(readWriteMode == ReadWriteMode.Write){
+//                        NdefTag.writeUri(tag, "WIFI:S:ssid;T:WPA;P:password;H:false;")
+                        NdefTag.writeUri(tag, contentInput)
+                    }
                 }
-                NdefFormatable::class.java.name in techList->{
-                    val ndef = NdefFormatable.get(tag)
-                    Log.i(TAG, "handleTag: ndef=$ndef ${ndef.isConnected}")
-                    val newMsg = NdefMessage(NdefRecord.createUri("hello"))
-                    ndef.connect()
-                    Log.i(TAG, "handleTag: ndef3=$ndef ${ndef.isConnected}")
-                    try {
-                        Log.i(TAG, "handleTag: ndef2=$ndef ${ndef.isConnected}")
-                        ndef.format(newMsg)
-                        Log.i(TAG, "handleTag: ndef msg=$newMsg")
-                    }catch (lostEx: TagLostException){
-                        Log.e(TAG, "handleTag: lost exception", )
-                        makeToast(this, "remove card")
-                    }catch (ioEx: IOException){
-                        Log.e(TAG, "handleTag: io exception", )
-                        makeToast(this, "canceled")
-                    }catch (formatEx: FormatException){
-                        Log.e(TAG, "handleTag: format exception", )
-                        makeToast(this, "format err")
-                    }
-                    ndef.close()
-                    Log.i(TAG, "handleTag: ndef byteArrayLength=${newMsg.byteArrayLength}")
-                    Log.i(TAG, "handleTag: ndef toByteArray=${newMsg.toByteArray()}")
-                    newMsg.records.forEach {record->
-                        Log.w(TAG, "handleTag: record $record")
-                        Log.i(TAG, "handleTag: id ${record.id.toHexString()}")
-                        Log.i(TAG, "handleTag: tnf ${record.tnf}")
-                        Log.i(TAG, "handleTag: payload ${record.payload.toHexString()}")
-                        Log.i(TAG, "handleTag: type ${record.type.toHexString()}")
-                        Log.i(TAG, "handleTag: toUri ${record.toUri()}")
-                        Log.i(TAG, "handleTag: toMimeType ${record.toMimeType()}")
-                    }
+                MifareClassic::class.java.name in techList->MifareTag.read(tag){
+                    Log.d(TAG, "handleTag: MifareClassic parse $it")
+                }
+                NfcA::class.java.name in techList->NfcATag.read(tag){
+
+                }
+                NdefFormatable::class.java.name in techList->NdefFormatableTag.read(tag){
+
                 }
             }
-//            var ndef = Ndef.get(tag)
-
-//            Log.d("handleTag", "Read NDEF message: ${ndef.ndefMessage}")
-//            Log.d("handleTag", "Read NDEF isWritable: ${ndef.isWritable}")
-
             techList.forEach { tec ->
                 when (tec) {
                     NfcF::class.java.name -> {
@@ -259,6 +238,7 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
                     }
                 }
             }
+
         }
     }
     @Composable
@@ -270,6 +250,22 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
             verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalAlignment = Alignment.Start
         ) {
+            ButtonText("切换读写模式") {
+                if(readWriteMode == ReadWriteMode.Read){
+                    readWriteMode = ReadWriteMode.Write
+                }else if(readWriteMode == ReadWriteMode.Write){
+                    readWriteMode = ReadWriteMode.Read
+                }
+            }
+            if(readWriteMode == ReadWriteMode.Write){
+                OutlinedTextField(value = contentInput,
+                    onValueChange = {
+                        contentInput = it
+                    },
+                    singleLine = true
+                )
+            }
+
             TitleSmall("Action:")
             TextBlock(action?:"-")
 
@@ -280,6 +276,13 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
             Column {
                 techList.forEach {
                     TextBlock(it)
+                }
+            }
+
+            TitleSmall("Ndef records:")
+            Column {
+                records.forEach {
+                    TextBlock(it.getString("payloadString", "-"))
                 }
             }
         }
