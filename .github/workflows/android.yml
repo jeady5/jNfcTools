@@ -20,3 +20,8 @@ jobs:
       run: chmod +x gradlew
     - name: Build with Gradle
       run: ./gradlew build
+    - name: Upload Apk Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-unsigned-${{ GITHUB_REF_NAME }}
+        path: app\build\outputs\apk\release\app-release-unsigned.apk
