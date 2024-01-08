@@ -7,20 +7,22 @@ import android.util.Log
 import java.io.IOException
 
 object NfcATag {
-    const val TAG = "[TAG_NFCA]"
+    private const val TAG = "[TAG_NFCA]"
     @OptIn(ExperimentalStdlibApi::class)
-    fun read(tag: Tag, onParsed: (Bundle)->Unit){
-        val retBundle = Bundle()
+    fun read(tag: Tag, onParsed: (NfcATagInfo)->Unit){
         val nfcA = NfcA.get(tag)
         try {
             nfcA.connect()
-            Log.i(TAG, "read: ${nfcA.tag} ${nfcA.atqa.toHexString()} ${nfcA.sak} ${nfcA.transceive("".toByteArray())}")
-            retBundle.putByteArray("atqa", nfcA.atqa)
-            retBundle.putString("atqaHexString", nfcA.atqa.toHexString())
-            retBundle.putString("atqaString", nfcA.atqa.decodeToString())
-            retBundle.putInt("maxTransceiveLength", nfcA.maxTransceiveLength)
-            retBundle.putInt("timeout", nfcA.timeout)
-            onParsed(retBundle)
+            val select = byteArrayOf(0x30, 0x05)
+            val response = nfcA.transceive(select);
+            onParsed(NfcATagInfo(
+                nfcA.atqa,
+                nfcA.atqa.toHexString(),
+                nfcA.atqa.decodeToString(),
+                nfcA.maxTransceiveLength,
+                nfcA.timeout,
+                response
+            ))
         }catch (e: IOException){
             Log.e(TAG, "read: $e", )
         }finally {
@@ -28,3 +30,11 @@ object NfcATag {
         }
     }
 }
+data class NfcATagInfo(
+    val atqa: ByteArray = byteArrayOf(),
+    val atqaHexString: String = "",
+    val atqaString: String = "",
+    val maxTransceiveLength: Int = 0,
+    val timeout: Int = 0,
+    val content: ByteArray = byteArrayOf()
+)

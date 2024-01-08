@@ -3,14 +3,10 @@ package com.jeady.nfctools
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.IntentFilter
-import android.nfc.FormatException
-import android.nfc.NdefMessage
-import android.nfc.NdefRecord
 import android.nfc.NfcAdapter
 import android.nfc.NfcAdapter.FLAG_READER_NFC_A
 import android.nfc.NfcAdapter.ReaderCallback
 import android.nfc.Tag
-import android.nfc.TagLostException
 import android.nfc.tech.IsoDep
 import android.nfc.tech.MifareClassic
 import android.nfc.tech.MifareUltralight
@@ -25,24 +21,19 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabPosition
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -52,24 +43,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.jeady.nfctools.jnfc.MifareTag
-import com.jeady.nfctools.jnfc.NdefFormatableTag
+import androidx.compose.ui.unit.sp
 import com.jeady.nfctools.ui.jcomps.ButtonText
 import com.jeady.nfctools.ui.jcomps.TextBlock
 import com.jeady.nfctools.ui.jcomps.TitleBig
-import com.jeady.nfctools.ui.jcomps.TitleSmall
+import com.jeady.nfctools.ui.nfcInfo.MifareCard
+import com.jeady.nfctools.ui.nfcInfo.NdefCard
+import com.jeady.nfctools.ui.nfcInfo.NfcACard
 import com.jeady.nfctools.ui.theme.NFCToolsTheme
-import com.jeady.nfctools.jnfc.NdefTag
-import com.jeady.nfctools.jnfc.NfcATag
-import kotlinx.coroutines.runBlocking
-import java.io.IOException
 
-
+var tagDetected: Tag? by mutableStateOf(null)
 class NFCReaderActivity: ComponentActivity(), ReaderCallback {
-    val TAG = "[JNFCReader]"
+    private val TAG = "[JNFCReader]"
     private lateinit var nfcAdapter: NfcAdapter
 
     // variable used to filter action
@@ -93,19 +83,13 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
         arrayOf<String>(Ndef::class.java.name),
     )
 
+
     // variable will shown on screen
     private var action: String? by mutableStateOf(null)
     private var cardId by mutableStateOf("-")
-    private var techList by mutableStateOf(listOf("-"))
-
-    // ndef records
-    private var records by mutableStateOf<List<Bundle>>(listOf())
-
-    // sectors
-    private var sectors by mutableStateOf<List<String>>(listOf())
+    private var techList by mutableStateOf(listOf<String>())
 
     private var contentInput by mutableStateOf("")
-
     enum class ReadWriteMode {
         Read, Write
     }
@@ -214,38 +198,11 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
 
     @OptIn(ExperimentalStdlibApi::class)
     fun handleTag(tag: Tag?) {
+        tagDetected = tag
         tag?.let {
             cardId = tag.id.toHexString()
             techList = tag.techList.toList()
             Log.i(TAG, "handleTag: techList=$techList")
-            techList.forEach {
-                Log.i(TAG, "handleTag: begin handle tech for $it")
-                when (it) {
-                    Ndef::class.java.name -> NdefTag.read(tag) {
-                        Log.d(TAG, "handleTag: Ndef parse $it")
-                        records = it.getParcelableArray("records", Bundle::class.java)?.toList()
-                            ?: listOf()
-                        if (readWriteMode == ReadWriteMode.Write) {
-//                        NdefTag.writeUri(tag, "WIFI:S:ssid;T:WPA;P:password;H:false;")
-                            NdefTag.writeUri(tag, contentInput)
-                        }
-                    }
-
-                    MifareClassic::class.java.name -> MifareTag.read(tag) {
-                        Log.d(TAG, "handleTag: MifareClassic parse $it")
-                        sectors = it.getStringArray("sectors")?.toList() ?: listOf()
-                    }
-
-                    NfcA::class.java.name -> NfcATag.read(tag) {
-
-                    }
-
-                    NdefFormatable::class.java.name -> NdefFormatableTag.read(tag) {
-
-                    }
-                }
-                Log.i(TAG, "handleTag: finish handle tech for $it")
-            }
         }
     }
 
@@ -276,7 +233,10 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
     @Composable
     private fun CardInfo() {
         Surface(shadowElevation = 2.dp) {
-            Column(Modifier.fillMaxSize().padding(10.dp, 50.dp),
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(10.dp, 50.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 horizontalAlignment = Alignment.Start
             ){
@@ -289,32 +249,40 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
                         singleLine = true
                     )
                 }
-
-                TitleSmall("Action:")
-                TextBlock(action ?: "-")
-
-                TitleSmall("TagId:")
-                TextBlock(cardId)
-                var currentTabIdx by remember { mutableIntStateOf(0) }
-                ScrollableTabRow(selectedTabIndex = currentTabIdx) {
-                    techList.forEachIndexed { idx, it ->
-                        Tab(selected = currentTabIdx == idx, onClick = { currentTabIdx = idx }) {
-                            TextBlock(it.split('.').last())
-                        }
+                TextBlock("action: ${action?:""}; tagId: $cardId")
+                var currentTabIdx by remember(techList) { mutableIntStateOf(0) }
+                LazyRow(Modifier.fillMaxWidth().background(Color(0x30709020)).padding(start = 5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ){
+                    itemsIndexed(techList){idx, tech->
+                        val isCurrent = idx==currentTabIdx
+                        Text(tech.split('.').last(),
+                            Modifier.background(if(isCurrent) Color(0xff709020) else Color(0xfff0f0f0))
+                                .clickable {
+                                    currentTabIdx = idx
+                                }.padding(20.dp, 10.dp),
+                            fontSize = if(isCurrent) 20.sp else 18.sp,
+                            fontWeight = if(isCurrent) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if(isCurrent) Color.White else Color.DarkGray
+                        )
                     }
                 }
                 Column {
-                    val tech = techList[currentTabIdx]
-                    TextBlock(tech)
-                    when (tech) {
-                        Ndef::class.java.name -> {
-                            NdefCard()
-                        }
-                        NfcA::class.java.name->{
-                            NfcACard()
-                        }
-                        MifareClassic::class.java.name->{
-                            MifareCard()
+                    techList.forEachIndexed { idx, tech ->
+                        val showCurrent by remember(currentTabIdx){ mutableStateOf(idx == currentTabIdx) }
+                        when (tech) {
+                            Ndef::class.java.name -> {
+                                NdefCard(showCurrent)
+                            }
+
+                            NfcA::class.java.name -> {
+                                NfcACard(showCurrent)
+                            }
+
+                            MifareClassic::class.java.name -> {
+                                MifareCard(showCurrent)
+                            }
                         }
                     }
                 }
@@ -339,40 +307,6 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
                 enableForegroundReader()
             }
             makeToast(context, getString(R.string.change_finish))
-        }
-    }
-
-    @Composable
-    private fun NdefCard() {
-        LazyColumn {
-            item {
-                TitleSmall("Ndef records:")
-            }
-            items(records){
-                TextBlock(it.getString("payloadString", "-"))
-            }
-        }
-    }
-    @Composable
-    private fun MifareCard() {
-        LazyColumn {
-            item {
-                TitleSmall("Mifare Sectors:")
-            }
-            items(sectors){
-                Row {
-                    Text("${sectors.indexOf(it)}:")
-                    TextBlock(it)
-                }
-            }
-        }
-    }
-    @Composable
-    private fun NfcACard() {
-        LazyColumn {
-            item {
-                TitleSmall("NfcA :")
-            }
         }
     }
 }

@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.jeady.nfctools.ui.jcomps.ButtonBlock
+import com.jeady.nfctools.ui.jcomps.showToast
 import com.jeady.nfctools.ui.theme.NFCToolsTheme
 
 class MainActivity : ComponentActivity() {
@@ -69,7 +70,7 @@ class MainActivity : ComponentActivity() {
                     Modifier
                         .weight(1f)
                         .height(50.dp)){
-                    Toast.makeText(context, getString(R.string.developing_text), Toast.LENGTH_SHORT).show()
+                    showToast(context, getString(R.string.developing_text))
                 }
             }
         }
@@ -78,5 +79,5 @@ class MainActivity : ComponentActivity() {
 
 fun makeToast(context: Context, text: String) {
     Log.d("[Tool] ", "makeToast() called with: context = $context, text = $text")
-    Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+    showToast(context, text)
 }

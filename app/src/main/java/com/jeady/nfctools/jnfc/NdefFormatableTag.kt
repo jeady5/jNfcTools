@@ -11,7 +11,7 @@ import android.util.Log
 import java.io.IOException
 
 object NdefFormatableTag{
-    val TAG = "[TAG_NdefFormatable]"
+    private const val TAG = "[TAG_NdefFormatable]"
     @OptIn(ExperimentalStdlibApi::class)
     fun read(tag: Tag, onParsed: (Bundle)->Unit){
         Log.d(TAG, "handleTag: NdefFormatable")

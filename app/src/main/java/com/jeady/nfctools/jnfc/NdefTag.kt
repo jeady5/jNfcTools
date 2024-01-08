@@ -12,14 +12,14 @@ import java.io.IOException
 import java.util.Locale
 
 object NdefTag {
-    val TAG = "[TAG_NDEF]"
+    private const val TAG = "[TAG_NDEF]"
     @OptIn(ExperimentalStdlibApi::class)
     fun read(tag: Tag, onParsed: (Bundle)->Unit){
         val retBundle = Bundle()
         val ndef = Ndef.get(tag)
         retBundle.putString("ndefType", ndef.type)
         retBundle.putBoolean("canMakeReadOnly", ndef.canMakeReadOnly())
-        retBundle.putBoolean("writable", ndef.isWritable())
+        retBundle.putBoolean("writable", ndef.isWritable)
         retBundle.putInt("maxSize", ndef.maxSize)
 
         val records = mutableListOf<Bundle>()

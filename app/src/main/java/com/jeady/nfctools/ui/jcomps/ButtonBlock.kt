@@ -14,13 +14,13 @@ import kotlin.random.nextUInt
 
 @Composable
 fun ButtonBlock(text: String, modifier: Modifier=Modifier, onClick: ()->Unit){
-    Surface(modifier.clickable{ onClick() }, shadowElevation = 3.dp, color = randomColor()) {
+    Surface(modifier.clickable{ onClick() }, shadowElevation = 3.dp, color = Color(0xffd0d0f0)) {
         Box(contentAlignment = Alignment.Center){
             Text(text)
         }
     }
 }
 
-fun randomColor(): Color{
-    return Color(Random.nextInt(0, 256), Random.nextInt(0, 256), Random.nextInt(0, 256), 0x30)
+fun randomColor(alpha: Int=255): Color{
+    return Color(Random.nextInt(0, 256), Random.nextInt(0, 256), Random.nextInt(0, 256), alpha)
 }
