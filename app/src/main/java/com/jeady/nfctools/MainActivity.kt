@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.jeady.nfctools.ui.jcomps.ButtonBlock
+import com.jeady.nfctools.ui.jcomps.TextTipBlock
 import com.jeady.nfctools.ui.jcomps.showToast
 import com.jeady.nfctools.ui.theme.NFCToolsTheme
 
@@ -73,6 +74,7 @@ class MainActivity : ComponentActivity() {
                     showToast(context, getString(R.string.developing_text))
                 }
             }
+            TextTipBlock(".本App仅限开发人员学习使用.\n造成的任何后果自己负责", Modifier.align(Alignment.BottomCenter))
         }
     }
 }

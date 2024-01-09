@@ -7,4 +7,7 @@
     <string name="read_text">Read</string>
     <string name="more_text">More</string>
     <string name="developing_text">developing</string>
+    <string name="write_text">write</string>
+    <string name="wrote_text">wrote</string>
+    <string name="write_fail_text">fail</string>
 </resources>

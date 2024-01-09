@@ -12,21 +12,21 @@ import java.io.IOException
 
 object NdefFormatableTag{
     private const val TAG = "[TAG_NdefFormatable]"
-    @OptIn(ExperimentalStdlibApi::class)
-    fun read(tag: Tag, onParsed: (Bundle)->Unit){
-        Log.d(TAG, "handleTag: NdefFormatable")
+    fun format(tag: Tag, text: String="Ndef format.", readOnly: Boolean=false, onResult: (Boolean)->Unit){
         val ndef = NdefFormatable.get(tag)
-        Log.i(TAG, "handleTag: ndef=$ndef ${ndef.isConnected}")
+        Log.i(TAG, "format: ndef=$ndef")
         try {
             ndef.connect()
-        }catch (lostEx: TagLostException){
-            Log.e(TAG, "handleTag: lost exception", )
-        }catch (ioEx: IOException){
-            Log.e(TAG, "handleTag: io exception", )
-        }catch (formatEx: FormatException){
-            Log.e(TAG, "handleTag: format exception", )
+            if(readOnly){
+                ndef.formatReadOnly(NdefMessage(text.toByteArray()))
+            }else{
+                ndef.format(NdefMessage(text.toByteArray()))
+            }
+            onResult(true)
+        }catch(e: Exception){
+            Log.e(TAG, "format: exception $e", )
+            onResult(false)
         } finally {
-            Log.i(TAG, "handleTag: close ndef formatable ")
             ndef.close()
         }
     }

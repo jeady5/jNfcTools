@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.sp
 private val paddingValue = PaddingValues(0.dp, 5.dp)
 @Composable
 fun TitleBig(text: String, modifier: Modifier=Modifier) {
-    Row(modifier.fillMaxWidth().padding(paddingValue), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(modifier.padding(paddingValue), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             text,
             fontWeight = FontWeight.Bold,
@@ -32,7 +32,7 @@ fun TitleBig(text: String, modifier: Modifier=Modifier) {
 }
 @Composable
 fun TitleSmall(text: String, modifier: Modifier=Modifier) {
-    Row(modifier.fillMaxWidth().padding(paddingValue), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(modifier.padding(paddingValue), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             text,
             fontWeight = FontWeight.SemiBold,
@@ -43,7 +43,7 @@ fun TitleSmall(text: String, modifier: Modifier=Modifier) {
 
 @Composable
 fun TitleSmaller(text: String, modifier: Modifier=Modifier) {
-    Row(modifier.fillMaxWidth().padding(paddingValue), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(modifier.padding(paddingValue), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             text,
             modifier.padding(10.dp, 10.dp),

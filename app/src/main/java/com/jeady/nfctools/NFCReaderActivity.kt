@@ -21,43 +21,16 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.jeady.nfctools.ui.jcomps.ButtonText
-import com.jeady.nfctools.ui.jcomps.TextBlock
-import com.jeady.nfctools.ui.jcomps.TitleBig
-import com.jeady.nfctools.ui.nfcInfo.MifareCard
-import com.jeady.nfctools.ui.nfcInfo.NdefCard
-import com.jeady.nfctools.ui.nfcInfo.NfcACard
+import com.jeady.nfctools.ui.pages.PageReader
+import com.jeady.nfctools.ui.pages.ReadTagMode
+import com.jeady.nfctools.ui.pages.readTagMode
 import com.jeady.nfctools.ui.theme.NFCToolsTheme
 
 var tagDetected: Tag? by mutableStateOf(null)
+var lastTagDetected: Tag? by mutableStateOf(null)
 class NFCReaderActivity: ComponentActivity(), ReaderCallback {
     private val TAG = "[JNFCReader]"
     private lateinit var nfcAdapter: NfcAdapter
@@ -83,38 +56,6 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
         arrayOf<String>(Ndef::class.java.name),
     )
 
-
-    // variable will shown on screen
-    private var action: String? by mutableStateOf(null)
-    private var cardId by mutableStateOf("-")
-    private var techList by mutableStateOf(listOf<String>())
-
-    private var contentInput by mutableStateOf("")
-    enum class ReadWriteMode {
-        Read, Write
-    }
-
-    private var readWriteMode by mutableStateOf(ReadWriteMode.Read)
-
-    // variable global control
-    private enum class ReadTagMode {
-        /**
-         * use enableReaderMode to read card
-         * @see enableForegroundReader
-         * @see disableReader
-         */
-        Reader,
-
-        /**
-         * use enableForegroundDispatch to read card
-         * @see enableForegroundDispatcher
-         * @see disableForegroundDispatcher
-         */
-        Dispatcher
-    }
-
-    private var readTagMode: ReadTagMode by mutableStateOf(ReadTagMode.Reader)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.i(TAG, "onCreate: $this $intent")
@@ -122,7 +63,13 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         setContent {
             NFCToolsTheme {
-                ReaderUI()
+                PageReader {
+                    when{
+                        it.readWay!=null->{
+                            changeReaderModeTo(it.readWay)
+                        }
+                    }
+                }
             }
         }
     }
@@ -165,8 +112,8 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
 
     override fun onTagDiscovered(tag: Tag) {
         Log.i(TAG, "onTagDiscovered: $tag ${tag.id}")
-        action = "-"
-        handleTag(tag)
+        lastTagDetected = tagDetected
+        tagDetected = tag
     }
 
     private fun enableForegroundDispatcher() {
@@ -188,125 +135,34 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
 
     private fun handleIntent(intent: Intent) {
         Log.i(TAG, "handleIntent: $intent")
-        action = intent.action
-        action?.let {
-            handleTag(intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java))
-            val extraId = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_ID)
-            Log.i(TAG, "handleIntent: get extra id $extraId")
+        intent.action?.let {
+            makeToast(this, it)
+            tagDetected = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
         }
     }
 
-    @OptIn(ExperimentalStdlibApi::class)
-    fun handleTag(tag: Tag?) {
-        tagDetected = tag
-        tag?.let {
-            cardId = tag.id.toHexString()
-            techList = tag.techList.toList()
-            Log.i(TAG, "handleTag: techList=$techList")
+
+    fun changeReaderMode(){
+        if (readTagMode == ReadTagMode.Reader) {
+            readTagMode = ReadTagMode.Dispatcher
+            disableReader()
+            enableForegroundDispatcher()
+        } else if (readTagMode == ReadTagMode.Dispatcher) {
+            readTagMode = ReadTagMode.Reader
+            disableForegroundDispatcher()
+            enableForegroundReader()
         }
     }
-
-    @Composable
-    fun ReaderUI() {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CardInfo()
-            TitleBig(
-                if (readWriteMode == ReadWriteMode.Write) "读写模式" else "读模式",
-                Modifier.align(Alignment.TopCenter)
-            )
-            ChangeWary()
-            ChangeReadWrite()
+    fun changeReaderModeTo(mode: ReadTagMode){
+        if (mode == ReadTagMode.Dispatcher) {
+            readTagMode = ReadTagMode.Dispatcher
+            disableReader()
+            enableForegroundDispatcher()
+        } else if (mode == ReadTagMode.Reader) {
+            readTagMode = ReadTagMode.Reader
+            disableForegroundDispatcher()
+            enableForegroundReader()
         }
-    }
-
-    @Composable
-    private fun BoxScope.ChangeReadWrite() {
-        ButtonText("读/写", Modifier.align(Alignment.TopStart)) {
-            if (readWriteMode == ReadWriteMode.Read) {
-                readWriteMode = ReadWriteMode.Write
-            } else if (readWriteMode == ReadWriteMode.Write) {
-                readWriteMode = ReadWriteMode.Read
-            }
-        }
-    }
-
-    @Composable
-    private fun CardInfo() {
-        Surface(shadowElevation = 2.dp) {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .padding(10.dp, 50.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                horizontalAlignment = Alignment.Start
-            ){
-                if (readWriteMode == ReadWriteMode.Write) {
-                    OutlinedTextField(
-                        value = contentInput,
-                        onValueChange = {
-                            contentInput = it
-                        },
-                        singleLine = true
-                    )
-                }
-                TextBlock("action: ${action?:""}; tagId: $cardId")
-                var currentTabIdx by remember(techList) { mutableIntStateOf(0) }
-                LazyRow(Modifier.fillMaxWidth().background(Color(0x30709020)).padding(start = 5.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ){
-                    itemsIndexed(techList){idx, tech->
-                        val isCurrent = idx==currentTabIdx
-                        Text(tech.split('.').last(),
-                            Modifier.background(if(isCurrent) Color(0xff709020) else Color(0xfff0f0f0))
-                                .clickable {
-                                    currentTabIdx = idx
-                                }.padding(20.dp, 10.dp),
-                            fontSize = if(isCurrent) 20.sp else 18.sp,
-                            fontWeight = if(isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if(isCurrent) Color.White else Color.DarkGray
-                        )
-                    }
-                }
-                Column {
-                    techList.forEachIndexed { idx, tech ->
-                        val showCurrent by remember(currentTabIdx){ mutableStateOf(idx == currentTabIdx) }
-                        when (tech) {
-                            Ndef::class.java.name -> {
-                                NdefCard(showCurrent)
-                            }
-
-                            NfcA::class.java.name -> {
-                                NfcACard(showCurrent)
-                            }
-
-                            MifareClassic::class.java.name -> {
-                                MifareCard(showCurrent)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun BoxScope.ChangeWary() {
-        val context = LocalContext.current
-        ButtonText(
-            "${stringResource(R.string.change_read_method)}\n$readTagMode",
-            Modifier.align(Alignment.TopEnd)
-        ) {
-            if (readTagMode == ReadTagMode.Reader) {
-                readTagMode = ReadTagMode.Dispatcher
-                disableReader()
-                enableForegroundDispatcher()
-            } else if (readTagMode == ReadTagMode.Dispatcher) {
-                readTagMode = ReadTagMode.Reader
-                disableForegroundDispatcher()
-                enableForegroundReader()
-            }
-            makeToast(context, getString(R.string.change_finish))
-        }
+        makeToast(this, getString(R.string.change_finish))
     }
 }

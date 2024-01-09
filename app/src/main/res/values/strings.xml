@@ -1,9 +1,12 @@
 <resources>
     <string name="app_name">NFC工具</string>
     <string name="mode_read">读模式</string>
-    <string name="change_read_method">切换读取方法</string>
+    <string name="change_read_method">读取方法</string>
     <string name="change_finish">切换完成</string>
     <string name="read_text">读</string>
     <string name="more_text">更多</string>
     <string name="developing_text">敬请期待</string>
+    <string name="write_text">写入</string>
+    <string name="wrote_text">已写入</string>
+    <string name="write_fail_text">写入失败</string>
 </resources>

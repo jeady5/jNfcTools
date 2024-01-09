@@ -9,7 +9,7 @@ import java.io.IOException
 
 object MifareTag {
     private const val TAG = "[TAG_Mifare]"
-    fun read(tag: Tag, onParsed: (MifareTagInfo)->Unit){
+    fun read(tag: Tag, onParsed: (MifareTagInfo?)->Unit){
 //        val resBundle = Bundle()
         val mifareClassic = MifareClassic.get(tag)
 //        resBundle.putInt("blockCount", mifareClassic.blockCount)
@@ -29,10 +29,10 @@ object MifareTag {
 //        Log.d(TAG, "handleTag: mifare classic, $resBundle")
         mifareClassic.connect()
         runBlocking {
+            var bytesBlock = 0
+            var blocksSector = 0
+            val sectors = mutableListOf<ByteArray>()
             try{
-                var bytesBlock = 0
-                var blocksSector = 0
-                val sectors = mutableListOf<ByteArray>()
                 for (sectorIdx in 0 until mifareClassic.sectorCount) {
                     // try authenticate a sector with default key A and default key B.
                     if(mifareClassic.authenticateSectorWithKeyA(sectorIdx, MifareClassic.KEY_DEFAULT) ||
@@ -50,8 +50,15 @@ object MifareTag {
                         break
                     }
                 }
-//                resBundle.putParcelableArrayList("sectors", sectors)
-                val mifareCardInfo = MifareTagInfo(
+            }catch (ex: IOException){
+                Log.e(TAG, "handleTag: IOException - $ex")
+                onParsed(null)
+            }catch (ex: SecurityException){
+                Log.e(TAG, "handleTag: SecurityException 卡片移除")
+                onParsed(null)
+            }finally {
+                Log.i(TAG, "handleTag: close mifareClassic")
+                onParsed(MifareTagInfo(
                     mifareClassic.blockCount,
                     mifareClassic.sectorCount,
                     blocksSector,
@@ -62,15 +69,12 @@ object MifareTag {
                     mifareClassic.type,
                     typeString,
                     sectors
-                )
-                onParsed(mifareCardInfo)
-            }catch (ex: IOException){
-                Log.e(TAG, "handleTag: IOException - $ex")
-            }catch (ex: SecurityException){
-                Log.e(TAG, "handleTag: SecurityException 卡片移除")
-            }finally {
-                Log.i(TAG, "handleTag: close mifareClassic")
-                mifareClassic.close()
+                ))
+                try {
+                    mifareClassic.close()
+                }catch (e: Exception){
+                    Log.e(TAG, "read: close exception $e", )
+                }
             }
         }
     }

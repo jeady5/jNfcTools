@@ -110,7 +110,7 @@ fun MifareCard(visible: Boolean=false) {
         LaunchedEffect(true){
             coroutine.launch {
                 Log.e(TAG, "MifareCard: compose", )
-                delay(1000)
+                delay(100   )
                 delayToShow = true
             }
         }
@@ -118,9 +118,9 @@ fun MifareCard(visible: Boolean=false) {
     LaunchedEffect(tagDetected){
         Log.w(TAG, "MifareCard: ", )
         tagDetected?.let {
-            MifareTag.read(it) {
+            MifareTag.read(it) {info->
                 Log.d(TAG, "handleTag: MifareClassic parse $it")
-                tagInfo = it
+                tagInfo =info?:MifareTagInfo()
                 showToast(context, "Mifare Done")
             }
         }

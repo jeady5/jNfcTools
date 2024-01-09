@@ -1,29 +1,21 @@
 package com.jeady.nfctools.jnfc
 
 import android.net.Uri
-import android.nfc.FormatException
 import android.nfc.NdefMessage
 import android.nfc.NdefRecord
 import android.nfc.Tag
 import android.nfc.tech.Ndef
 import android.os.Bundle
 import android.util.Log
-import java.io.IOException
-import java.util.Locale
+import com.jeady.nfctools.jnfc.exception.ResultException
 
 object NdefTag {
     private const val TAG = "[TAG_NDEF]"
     @OptIn(ExperimentalStdlibApi::class)
-    fun read(tag: Tag, onParsed: (Bundle)->Unit){
-        val retBundle = Bundle()
+    fun read(tag: Tag, onParsed: (NdefTagInfo?)->Unit){
         val ndef = Ndef.get(tag)
-        retBundle.putString("ndefType", ndef.type)
-        retBundle.putBoolean("canMakeReadOnly", ndef.canMakeReadOnly())
-        retBundle.putBoolean("writable", ndef.isWritable)
-        retBundle.putInt("maxSize", ndef.maxSize)
-
         val records = mutableListOf<Bundle>()
-        ndef.cachedNdefMessage.records.forEach {
+        ndef.cachedNdefMessage?.records?.forEach {
             val record = Bundle()
             // human tnf type
             val tnfInt = it.tnf.toInt()
@@ -57,8 +49,18 @@ object NdefTag {
 
             records.add(record)
         }
-        retBundle.putParcelableArray("records", records.toTypedArray())
-        onParsed(retBundle)
+        val tagInfo = try {
+            NdefTagInfo(
+                ndef.type,
+                ndef.canMakeReadOnly(),
+                ndef.isWritable,
+                ndef.maxSize,
+                records
+            )
+        }catch (e: Exception){
+            null
+        }
+        onParsed(tagInfo)
     }
     fun writeApp(tag: Tag, packageName: String){
         val newRecord = NdefRecord.createApplicationRecord(packageName)
@@ -93,13 +95,21 @@ object NdefTag {
         try {
             ndef.connect()
             ndef.writeNdefMessage(msg)
-        }catch (ioEx: IOException){
-            Log.e(TAG, "writeMsg: ioException - $ioEx")
-        }catch (formatEx: FormatException){
-            Log.e(TAG, "writeMsg: formatException - $formatEx")
-        }
-        finally {
             ndef.close()
+            throw ResultException("success")
+        }catch (e: ResultException){
+            throw ResultException("success")
+        } catch (e: Exception){
+            Log.e(TAG, "writeMsg: exception - $e")
+            throw ResultException(e.localizedMessage)
         }
     }
 }
+
+data class NdefTagInfo(
+    val ndefType: String = "",
+    val canMakeReadOnly: Boolean = false,
+    val writable: Boolean = false,
+    val maxSize: Int = 0,
+    val records: List<Bundle> = listOf()
+)
