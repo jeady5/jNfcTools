@@ -1,10 +1,8 @@
 package com.jeady.nfctools.ui.nfcInfo
 
 import android.util.Log
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -13,10 +11,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,32 +23,42 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.jeady.nfctools.R
 import com.jeady.nfctools.jnfc.MifareTag
 import com.jeady.nfctools.jnfc.MifareTagInfo
 import com.jeady.nfctools.tagDetected
+import com.jeady.nfctools.ui.jcomps.HexASCIIBlock
+import com.jeady.nfctools.ui.jcomps.TableKeyValue
 import com.jeady.nfctools.ui.jcomps.TitleSmall
 import com.jeady.nfctools.ui.jcomps.TitleSmaller
-import com.jeady.nfctools.ui.jcomps.randomColor
 import com.jeady.nfctools.ui.jcomps.showToast
 import com.jeady.nfctools.ui.theme.colors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
-@OptIn(ExperimentalStdlibApi::class)
 @Composable
-fun MifareCard(visible: Boolean=false) {
+fun MifareCard(visible: Boolean, myIndex: Int=-1) {
     val TAG = "[MifareCard] "
     val context = LocalContext.current
     var tagInfo by remember{ mutableStateOf(MifareTagInfo()) }
     var delayToShow by remember(visible) { mutableStateOf(false) }
     if(visible) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            TitleSmaller("Sectors: ${tagInfo.sectorCount}; Blocks: ${tagInfo.blockCount}; Bytes: ${tagInfo.size}")
-            val cols = 16
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ){
+            TableKeyValue(listOf(
+                "Type" to tagInfo.typeString,
+                "Timeout" to tagInfo.timeout,
+                "MaxTransceiveLength" to tagInfo.maxTransceiveLength,
+                "Sectors" to tagInfo.sectorCount,
+                "Blocks" to tagInfo.blockCount,
+                "Bytes" to tagInfo.size
+            ))
+            val cols = 16 // cols per row for byte data
             if(delayToShow) {
                 LazyColumn(
                     Modifier.fillMaxWidth(),
@@ -71,6 +77,7 @@ fun MifareCard(visible: Boolean=false) {
                                         "sector $sectorIdx; blocks $idx-${idx+tagInfo.blocksInSector}; bytes: $sectorByteBegin-${sectorByteBegin+bytesInSector-1}",
                                         Modifier
                                             .padding(top = 5.dp)
+                                            .fillMaxWidth()
                                             .background(colors[sectorIdx])
                                     )
                                 }
@@ -80,21 +87,8 @@ fun MifareCard(visible: Boolean=false) {
                                         .background(colors[sectorIdx].copy(currentAlpha))) {
                                     itemsIndexed(block.toList(), key={idx,_->sectorByteBegin+blockIdx*tagInfo.bytesInBlock+idx}){ idxByte, bItem ->
                                         val byteSectorIdx = blockIdx*tagInfo.bytesInBlock+idxByte
-                                        Column(Modifier.clickable {
+                                        HexASCIIBlock(bItem) {
                                             showToast(context, "byte $byteSectorIdx/${sectorByteBegin + byteSectorIdx}")
-                                            },
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Text(
-                                                bItem.toHexString(),
-                                                fontFamily = FontFamily.Monospace,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                            Text(
-                                                "${bItem.toInt().toChar()}",
-                                                fontFamily = FontFamily.Monospace,
-                                                color = Color.DarkGray
-                                            )
                                         }
                                     }
                                 }
@@ -103,25 +97,24 @@ fun MifareCard(visible: Boolean=false) {
                     }
                 }
             }else{
-                Text("扇区数据加载中")
+                Text(stringResource(R.string.sector_loading_text))
             }
         }
         val coroutine = rememberCoroutineScope()
         LaunchedEffect(true){
             coroutine.launch {
                 Log.e(TAG, "MifareCard: compose", )
-                delay(100   )
+                delay(500) // delay to load ui, avoid
                 delayToShow = true
             }
         }
     }
     LaunchedEffect(tagDetected){
-        Log.w(TAG, "MifareCard: ", )
+        tagInfo = MifareTagInfo()
         tagDetected?.let {
             MifareTag.read(it) {info->
-                Log.d(TAG, "handleTag: MifareClassic parse $it")
-                tagInfo =info?:MifareTagInfo()
-                showToast(context, "Mifare Done")
+                tagInfo = info
+                updateState(myIndex, info.status)
             }
         }
     }

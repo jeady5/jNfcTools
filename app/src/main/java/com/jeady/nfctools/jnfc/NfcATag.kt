@@ -4,16 +4,24 @@ import android.nfc.Tag
 import android.nfc.tech.NfcA
 import android.os.Bundle
 import android.util.Log
+import com.jeady.nfctools.ui.nfcInfo.closeTag
 import java.io.IOException
 
 object NfcATag {
     private const val TAG = "[TAG_NFCA]"
     @OptIn(ExperimentalStdlibApi::class)
-    fun read(tag: Tag, onParsed: (NfcATagInfo?)->Unit){
+    fun read(tag: Tag, onParsed: (NfcATagInfo)->Unit){
         val nfcA = NfcA.get(tag)
+        var status = "ready"
+        val (maxTransceiveLength, timeout) = try {
+             nfcA.maxTransceiveLength to nfcA.timeout
+        }catch (e: Exception){
+            Log.e(TAG, "read: transceiveLen timeout $e")
+            status = "error"
+            0 to 0
+        }
         var cardId = byteArrayOf()
         var allByte = byteArrayOf()
-        var response = byteArrayOf()
         try {
             nfcA.connect()
             val selectId = byteArrayOf(0x78)
@@ -26,48 +34,39 @@ object NfcATag {
             val selectWrite1NoErase = byteArrayOf(0x1a)
             val selectWrite8Erase = byteArrayOf(0x54)
             val selectWrite8NoErase = byteArrayOf(0x1b)
-            cardId = nfcA.transceive(selectId);
-            allByte = nfcA.transceive(selectAll);
-            response = nfcA.transceive(select16);
+            cardId = nfcA.transceive(selectId)
+            allByte = nfcA.transceive(selectAll)
         }catch (e: Exception){
-            Log.e(TAG, "read: io exception $e", )
-        }finally {
-            try {
-                onParsed(NfcATagInfo(
-                    "ready",
-                    cardId.toHexString(),
-                    nfcA.atqa,
-                    nfcA.atqa.toHexString(),
-                    nfcA.atqa.decodeToString(),
-                    nfcA.sak,
-                    nfcA.maxTransceiveLength,
-                    nfcA.timeout,
-                    allByte,
-                    response
-                ))
-                nfcA.close()
-            }catch (e: Exception){
-                Log.e(TAG, "read: close exception $e", )
-            }
+            Log.e(TAG, "read: exception ${e.stackTrace}", )
+        }finally{
+            closeTag(nfcA)
+            onParsed(NfcATagInfo(
+                status,
+                cardId.toHexString(),
+                nfcA.atqa,
+                nfcA.atqa.toHexString(),
+                nfcA.atqa.decodeToString(),
+                nfcA.sak,
+                maxTransceiveLength,
+                timeout,
+                allByte,
+                byteArrayOf()
+            ))
         }
     }
     @OptIn(ExperimentalStdlibApi::class)
     fun get(tag: Tag, cmd: ByteArray, onResponse: (ByteArray)->Unit){
         val nfcA = NfcA.get(tag)
-        var response: ByteArray = byteArrayOf()
+        var response: ByteArray = "exception".toByteArray()
         try {
             nfcA.connect()
             response = nfcA.transceive(cmd)
         }catch (e: Exception){
-            Log.e(TAG, "get: exception $e", )
+            Log.e(TAG, "get: exception $e")
         }finally {
-            onResponse(response)
             Log.i(TAG, "get: send cmd ${cmd.toHexString()} and response ${response.toHexString()}")
-            try {
-                nfcA.close()
-            }catch (e: Exception) {
-                Log.e(TAG, "get: exception when close $e",)
-            }
+            closeTag(nfcA)
+            onResponse(response)
         }
     }
 }

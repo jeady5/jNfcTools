@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -23,9 +24,12 @@ import androidx.compose.ui.unit.dp
 fun DropDown(lst: List<String>, text: String="click", onSelect: (String?)->Unit) {
     var expand by remember{ mutableStateOf(false) }
     Box{
-        OutlinedButton(onClick = {
-            expand = !expand
-        }) {
+        OutlinedButton(
+            onClick = {
+                expand = !expand
+            },
+            shape = RoundedCornerShape(5.dp)
+        ) {
             Text(text = text)
         }
         DropdownMenu(expanded = expand, onDismissRequest = {

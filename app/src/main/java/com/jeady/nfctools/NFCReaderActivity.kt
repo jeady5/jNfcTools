@@ -18,10 +18,13 @@ import android.nfc.tech.NfcBarcode
 import android.nfc.tech.NfcF
 import android.nfc.tech.NfcV
 import android.os.Bundle
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.jeady.nfctools.ui.pages.PageReader
@@ -29,8 +32,10 @@ import com.jeady.nfctools.ui.pages.ReadTagMode
 import com.jeady.nfctools.ui.pages.readTagMode
 import com.jeady.nfctools.ui.theme.NFCToolsTheme
 
+
 var tagDetected: Tag? by mutableStateOf(null)
 var lastTagDetected: Tag? by mutableStateOf(null)
+var techListState = mutableStateListOf<Pair<String, String>>()
 class NFCReaderActivity: ComponentActivity(), ReaderCallback {
     private val TAG = "[JNFCReader]"
     private lateinit var nfcAdapter: NfcAdapter
@@ -61,6 +66,8 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
         Log.i(TAG, "onCreate: $this $intent")
         handleIntent(intent)
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+        val vibrator = applicationContext.getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager
+        vibrator.defaultVibrator.cancel()
         setContent {
             NFCToolsTheme {
                 PageReader {
@@ -110,10 +117,17 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
         nfcAdapter.disableReaderMode(this)
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
     override fun onTagDiscovered(tag: Tag) {
-        Log.i(TAG, "onTagDiscovered: $tag ${tag.id}")
-        lastTagDetected = tagDetected
+        Log.i(TAG, "TagDiscovered: $tag ${tag.id.toHexString()} / ${lastTagDetected?.id?.toHexString()}")
+        techListState.clear()
+        if(lastTagDetected==null || (lastTagDetected?.id?.toHexString() != tag.id.toHexString())) {
+            lastTagDetected = tag
+        }
         tagDetected = tag
+        tag.techList.forEach {
+            techListState.add(it to "reading")
+        }
     }
 
     private fun enableForegroundDispatcher() {
@@ -153,7 +167,7 @@ class NFCReaderActivity: ComponentActivity(), ReaderCallback {
             enableForegroundReader()
         }
     }
-    fun changeReaderModeTo(mode: ReadTagMode){
+    private fun changeReaderModeTo(mode: ReadTagMode){
         if (mode == ReadTagMode.Dispatcher) {
             readTagMode = ReadTagMode.Dispatcher
             disableReader()

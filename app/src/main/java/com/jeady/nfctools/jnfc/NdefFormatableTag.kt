@@ -8,6 +8,7 @@ import android.nfc.TagLostException
 import android.nfc.tech.NdefFormatable
 import android.os.Bundle
 import android.util.Log
+import com.jeady.nfctools.ui.nfcInfo.closeTag
 import java.io.IOException
 
 object NdefFormatableTag{
@@ -27,7 +28,7 @@ object NdefFormatableTag{
             Log.e(TAG, "format: exception $e", )
             onResult(false)
         } finally {
-            ndef.close()
+            closeTag(ndef)
         }
     }
 }

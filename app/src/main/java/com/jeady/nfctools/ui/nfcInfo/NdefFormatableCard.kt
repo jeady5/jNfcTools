@@ -7,6 +7,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -15,12 +16,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import com.jeady.nfctools.jnfc.NdefFormatableTag
 import com.jeady.nfctools.tagDetected
+import com.jeady.nfctools.techListState
 import com.jeady.nfctools.ui.jcomps.ButtonText
 import com.jeady.nfctools.ui.jcomps.TextTipBlock
 import com.jeady.nfctools.ui.jcomps.showToast
 
 @Composable
-fun NdefFormatableCard(visible: Boolean=false) {
+fun NdefFormatableCard(visible: Boolean, myIndex: Int=-1) {
     val context = LocalContext.current
     AnimatedVisibility(visible) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -46,5 +48,8 @@ fun NdefFormatableCard(visible: Boolean=false) {
 //                }
 //            }
         }
+    }
+    LaunchedEffect(context){
+        updateState(myIndex, "ready")
     }
 }

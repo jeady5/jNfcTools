@@ -3,6 +3,7 @@ package com.jeady.nfctools.jnfc
 import android.nfc.Tag
 import android.nfc.tech.MifareUltralight
 import android.util.Log
+import com.jeady.nfctools.ui.nfcInfo.closeTag
 import java.io.IOException
 
 object MifareUltralight {
@@ -21,6 +22,8 @@ object MifareUltralight {
         }catch (ex: IOException){
             Log.e(TAG, "read: io exception $ex", )
             onParsed(null)
+        }finally {
+            closeTag(mifareUltralight)
         }
     }
 }

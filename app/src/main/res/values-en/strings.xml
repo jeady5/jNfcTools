@@ -10,4 +10,9 @@
     <string name="write_text">write</string>
     <string name="wrote_text">wrote</string>
     <string name="write_fail_text">fail</string>
+    <string name="detect_card_text">Please tap your tag</string>
+    <string name="input_hex_text">Input your hex cmd;ex: 3005</string>
+    <string name="send_text">Send</string>
+    <string name="read_or_write_text">R/W</string>
+    <string name="sector_loading_text">Loading sectors...</string>
 </resources>

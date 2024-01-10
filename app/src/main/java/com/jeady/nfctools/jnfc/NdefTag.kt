@@ -8,59 +8,55 @@ import android.nfc.tech.Ndef
 import android.os.Bundle
 import android.util.Log
 import com.jeady.nfctools.jnfc.exception.ResultException
+import com.jeady.nfctools.ui.nfcInfo.closeTag
 
 object NdefTag {
     private const val TAG = "[TAG_NDEF]"
     @OptIn(ExperimentalStdlibApi::class)
-    fun read(tag: Tag, onParsed: (NdefTagInfo?)->Unit){
+    fun read(tag: Tag, onParsed: (NdefTagInfo)->Unit){
         val ndef = Ndef.get(tag)
-        val records = mutableListOf<Bundle>()
-        ndef.cachedNdefMessage?.records?.forEach {
-            val record = Bundle()
-            // human tnf type
-            val tnfInt = it.tnf.toInt()
-            val tnf = when(tnfInt) {
-                3 -> "TNF_ABSOLUTE_URI"
-                0 -> "TNF_EMPTY"
-                4 -> "TNF_EXTERNAL_TYPE"
-                2 -> "TNF_MIME_MEDIA"
-                6 -> "TNF_UNCHANGED"
-                5 -> "TNF_UNKNOWN"
-                1 -> "TNF_WELL_KNOWN"
-                else -> "UNKNOWN"
+        var status = "ready"
+        val records = mutableListOf<RecordInfo>()
+        var canMakeReadOnly = false
+        try {
+            ndef.connect()
+            canMakeReadOnly = ndef.canMakeReadOnly()
+            ndef.ndefMessage?.records?.forEach {
+                val tnf = it.tnf
+                val tnfString = when(tnf.toInt()) {
+                    3 -> "TNF_ABSOLUTE_URI"
+                    0 -> "TNF_EMPTY"
+                    4 -> "TNF_EXTERNAL_TYPE"
+                    2 -> "TNF_MIME_MEDIA"
+                    6 -> "TNF_UNCHANGED"
+                    5 -> "TNF_UNKNOWN"
+                    1 -> "TNF_WELL_KNOWN"
+                    else -> "UNKNOWN"
+                }
+                records.add(RecordInfo(
+                    it.id.toHexString(),
+                    tnf,
+                    tnfString,
+                    it.type,
+                    it.payload,
+                    it.payload.toHexString(),
+                    it.payload.decodeToString()
+                ))
             }
-            record.putInt("tnf", tnfInt)
-            record.putString("tnfString", tnf)
-
-            // type
-            val type = it.type
-//            NdefRecord.RTD_URI
-            record.putByteArray("type", type)
-            record.putString("typeString", type.toHexString())
-
-            // id
-            record.putByteArray("id", it.id)
-            record.putString("idHexString", it.id.toHexString())
-
-            // payload
-            record.putByteArray("payload", it.payload)
-            record.putString("payloadHexString", it.payload.toHexString())
-            record.putString("payloadString", it.payload.decodeToString())
-
-            records.add(record)
-        }
-        val tagInfo = try {
-            NdefTagInfo(
+        }catch (e: Exception){
+            Log.e(TAG, "read: exception $e")
+            status = "error"
+        }finally {
+            onParsed(NdefTagInfo(
+                status,
                 ndef.type,
-                ndef.canMakeReadOnly(),
+                canMakeReadOnly,
                 ndef.isWritable,
                 ndef.maxSize,
                 records
-            )
-        }catch (e: Exception){
-            null
+            ))
+            closeTag(ndef)
         }
-        onParsed(tagInfo)
     }
     fun writeApp(tag: Tag, packageName: String){
         val newRecord = NdefRecord.createApplicationRecord(packageName)
@@ -95,21 +91,32 @@ object NdefTag {
         try {
             ndef.connect()
             ndef.writeNdefMessage(msg)
-            ndef.close()
             throw ResultException("success")
         }catch (e: ResultException){
             throw ResultException("success")
         } catch (e: Exception){
             Log.e(TAG, "writeMsg: exception - $e")
             throw ResultException(e.localizedMessage)
+        }finally {
+            closeTag(ndef)
         }
     }
 }
 
 data class NdefTagInfo(
+    val status: String = "ready",
     val ndefType: String = "",
     val canMakeReadOnly: Boolean = false,
     val writable: Boolean = false,
     val maxSize: Int = 0,
-    val records: List<Bundle> = listOf()
+    val records: List<RecordInfo> = listOf()
+)
+data class RecordInfo(
+    val id: String = "",
+    val tnf: Short = 0,
+    val tnfString: String = "",
+    val type: ByteArray = byteArrayOf(),
+    val payload: ByteArray = byteArrayOf(),
+    val payloadHexString: String = "",
+    val payloadString: String = "",
 )

@@ -5,6 +5,7 @@ import android.nfc.tech.Ndef
 import android.nfc.tech.NdefFormatable
 import android.nfc.tech.NfcA
 import android.util.Log
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,7 +31,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jeady.nfctools.NFCReaderActivity
@@ -39,9 +44,12 @@ import com.jeady.nfctools.common.EventData
 import com.jeady.nfctools.lastTagDetected
 import com.jeady.nfctools.makeToast
 import com.jeady.nfctools.tagDetected
+import com.jeady.nfctools.techListState
 import com.jeady.nfctools.ui.jcomps.ButtonPlain
 import com.jeady.nfctools.ui.jcomps.ButtonText
+import com.jeady.nfctools.ui.jcomps.TextBigTipBlock
 import com.jeady.nfctools.ui.jcomps.TextBlock
+import com.jeady.nfctools.ui.jcomps.TextTipBlock
 import com.jeady.nfctools.ui.jcomps.TitleBig
 import com.jeady.nfctools.ui.nfcInfo.MifareCard
 import com.jeady.nfctools.ui.nfcInfo.NdefCard
@@ -67,7 +75,6 @@ fun PageReader(onEvent: (EventData)->Unit) {
 
 @Composable
 private fun CardInfo() {
-    val techList = tagDetected?.techList?: arrayOf<String>()
     val TAG = "[CardInfo]"
     Surface(shadowElevation = 2.dp) {
         Column(
@@ -77,21 +84,26 @@ private fun CardInfo() {
             verticalArrangement = Arrangement.spacedBy(10.dp),
             horizontalAlignment = Alignment.Start
         ){
-            var currentTabIdx by remember(tagDetected==lastTagDetected) {
-                Log.e(TAG, "CardInfo: tag detectedd cahgneddd $tagDetected")
+            var currentTabIdx by remember(lastTagDetected) {
                 mutableIntStateOf(0)
             }
             LazyRow(
                 Modifier
                     .fillMaxWidth()
                     .background(Color(0x30709020))
-                    .padding(start = 5.dp),
+                    .padding(5.dp, 0.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ){
-                itemsIndexed(techList){idx, tech->
+                itemsIndexed(techListState){ idx, info->
                     val isCurrent = idx==currentTabIdx
-                    Text(tech.split('.').last(),
+                    Text(
+                        buildAnnotatedString { 
+                            append(info.first.split('.').last())
+                            withStyle(SpanStyle(fontSize = 12.sp)){
+                                append("\n${info.second}")
+                            }
+                        },
                         Modifier
                             .background(if (isCurrent) Color(0xff709020) else Color(0xfff0f0f0))
                             .clickable {
@@ -100,31 +112,43 @@ private fun CardInfo() {
                             .padding(20.dp, 10.dp),
                         fontSize = if(isCurrent) 20.sp else 18.sp,
                         fontWeight = if(isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if(isCurrent) Color.White else Color.DarkGray
+                        color = if(isCurrent) Color.White else Color.DarkGray,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
             Column {
-                techList.forEachIndexed { idx, tech ->
-                    val showCurrent by remember(currentTabIdx){ mutableStateOf(idx == currentTabIdx) }
-                    when (tech) {
+                techListState.forEachIndexed { idx, info ->
+                    val showCurrent by remember(currentTabIdx) { mutableStateOf(idx == currentTabIdx) }
+                    when (info.first) {
                         Ndef::class.java.name -> {
-                            NdefCard(showCurrent)
+                            NdefCard(showCurrent, idx)
                         }
+
                         NdefFormatable::class.java.name -> {
-                            NdefFormatableCard(showCurrent)
+                            NdefFormatableCard(showCurrent, idx)
                         }
+
                         NfcA::class.java.name -> {
-                            NfcACard(showCurrent)
+                            NfcACard(showCurrent, idx)
                         }
+
                         MifareClassic::class.java.name -> {
-                            MifareCard(showCurrent)
+                            MifareCard(showCurrent, idx)
                         }
                     }
+                }
+                if(techListState.isEmpty()){
+                    DetectCardTip()
                 }
             }
         }
     }
+}
+
+@Composable
+fun DetectCardTip(){
+    TextBigTipBlock(stringResource(R.string.detect_card_text), Modifier.fillMaxSize())
 }
 
 @Composable
@@ -139,7 +163,7 @@ private fun BoxScope.ChangeWary(callback: (EventData)->Unit) {
 
 @Composable
 private fun BoxScope.ChangeReadWrite() {
-    ButtonPlain("读/写", Modifier.align(Alignment.TopStart)) {
+    ButtonPlain(stringResource(R.string.read_or_write_text), Modifier.align(Alignment.TopStart)) {
         if (readWriteMode == ReadWriteMode.ReadOnly) {
             readWriteMode = ReadWriteMode.ReadWrite
         } else if (readWriteMode == ReadWriteMode.ReadWrite) {

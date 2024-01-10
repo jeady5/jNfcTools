@@ -1,9 +1,6 @@
 package com.jeady.nfctools.ui.nfcInfo
 
-import android.nfc.Tag
-import android.os.Bundle
 import android.util.Log
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -17,44 +14,49 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.jeady.nfctools.R
 import com.jeady.nfctools.jnfc.NfcATag
 import com.jeady.nfctools.jnfc.NfcATagInfo
-import com.jeady.nfctools.makeToast
 import com.jeady.nfctools.tagDetected
 import com.jeady.nfctools.ui.jcomps.ButtonText
-import com.jeady.nfctools.ui.jcomps.TextBlock
+import com.jeady.nfctools.ui.jcomps.HexASCIIBlock
+import com.jeady.nfctools.ui.jcomps.TableKeyValue
 import com.jeady.nfctools.ui.jcomps.TitleSmall
-import com.jeady.nfctools.ui.jcomps.showToast
 
 
 @OptIn(ExperimentalStdlibApi::class)
 @Composable
-fun NfcACard(visible: Boolean=false) {
+fun NfcACard(visible: Boolean, myIndex: Int=-1) {
     val context = LocalContext.current
-    val TAG = "[TAG_NFCA_CARD"
+    val TAG = "[TAG_NFCA_CARD]"
     var tagInfo by remember{ mutableStateOf(NfcATagInfo()) }
     AnimatedVisibility(visible) {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
-                TitleSmall("id : ${tagInfo.id}")
-                TitleSmall("atqa : ${tagInfo.atqaHexString}")
-                TitleSmall("sak : ${tagInfo.sak}")
-                TitleSmall("timeout : ${tagInfo.timeout}")
-                TitleSmall("maxTrans : ${tagInfo.maxTransceiveLength}")
-                TitleSmall("content : ${tagInfo.content.toHexString()}")
+                TableKeyValue(listOf(
+                    "Id" to tagInfo.id,
+                    "Atqa" to tagInfo.atqaHexString,
+                    "Sak" to tagInfo.sak,
+                    "Timeout" to tagInfo.timeout,
+                    "MaxTrans" to tagInfo.maxTransceiveLength,
+                    "Content" to tagInfo.content.toHexString()
+                ))
             }
             item{
                 Divider()
             }
             item {
                 var cmd by remember{ mutableStateOf("") }
-                Row {
+                Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically){
                     var cmdByteArr = byteArrayOf()
                     fun sendCmd(){
                         tagDetected?.let {tag->
                             NfcATag.get(tag, cmdByteArr){response->
+                                Log.d(TAG, "sendCmd: get response ${response.toHexString()}")
                                 tagInfo = tagInfo.copy(testResponse = response)
                             }
                         }
@@ -67,7 +69,7 @@ fun NfcACard(visible: Boolean=false) {
                                 cmd = value
                             }
                         },
-                        placeholder = { Text("请输入十六进制指令") },
+                        placeholder = { Text(stringResource(R.string.input_hex_text)) },
                         isError = try {
                             cmdByteArr = cmd.hexToByteArray()
                             false
@@ -76,21 +78,21 @@ fun NfcACard(visible: Boolean=false) {
                         },
                         singleLine = true
                     )
-                    ButtonText(text = "发送") {
+                    ButtonText(text = stringResource(R.string.send_text)) {
                         sendCmd()
                     }
                 }
-            }
-            item{
-                TitleSmall("response : ${tagInfo.testResponse.toHexString()}")
+                if(tagInfo.testResponse.isNotEmpty()) {
+                    TableKeyValue(listOf("Response" to tagInfo.testResponse), monoSpace = false)
+                }
             }
         }
     }
     LaunchedEffect(tagDetected) {
         tagDetected?.let {
             NfcATag.read(it) {info->
-                showToast(context, "NfcA Done")
-                tagInfo = info ?: NfcATagInfo()
+                tagInfo = info
+                updateState(myIndex, info.status)
             }
         }
     }
